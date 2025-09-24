@@ -1,0 +1,63 @@
+body {
+  background: #f4f6fb;
+  font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar {
+  min-height: 64px;
+}
+
+.card {
+  border-radius: 1rem;
+  border: none;
+}
+
+.card .card-header {
+  border-top-left-radius: 1rem !important;
+  border-top-right-radius: 1rem !important;
+}
+
+.quest-list {
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.quest-list .list-group-item {
+  border: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.quest-list .list-group-item:last-child {
+  border-bottom: 0;
+}
+
+.quest-list .list-group-item.active {
+  background: linear-gradient(135deg, #3f8efc, #5b6dfd);
+  border-color: transparent;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+}
+
+@media (max-width: 992px) {
+  .quest-list {
+    max-height: 360px;
+  }
+}

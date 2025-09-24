@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QuestTools UI</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <header class="navbar navbar-dark bg-primary shadow-sm">
+        <div class="container-fluid align-items-center">
+          <span class="navbar-brand fw-semibold">QuestTools</span>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-primary text-wrap" v-if="dataPath">
+              {{ '{{' }} dataPath {{ '}}' }}
+            </span>
+            <button class="btn btn-outline-light btn-sm" @click="loadDocument" :disabled="loading">
+              <span class="spinner-border spinner-border-sm" v-if="loading"></span>
+              <span v-else class="bi bi-arrow-repeat"></span>
+              Tải lại dữ liệu
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main class="flex-grow-1">
+        <div class="container-fluid py-4">
+          <div v-if="message" :class="['alert','alert-dismissible','fade','show', messageClass]">
+            <span>{{ '{{' }} message {{ '}}' }}</span>
+            <button type="button" class="btn-close" @click="clearMessage"></button>
+          </div>
+
+          <div class="row g-4">
+            <div class="col-lg-3">
+              <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-0">
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="input-group input-group-sm flex-grow-1">
+                      <span class="input-group-text"><i class="bi bi-search"></i></span>
+                      <input
+                        type="search"
+                        class="form-control"
+                        placeholder="Tìm nhiệm vụ..."
+                        v-model="searchQuery"
+                        :disabled="loading"
+                      />
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary" @click="startCreate" :disabled="loading">
+                      <i class="bi bi-plus-lg"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="list-group list-group-flush quest-list">
+                  <button
+                    v-for="quest in filteredQuests"
+                    :key="quest.id"
+                    type="button"
+                    class="list-group-item list-group-item-action"
+                    :class="{ active: quest.id === selectedQuestId }"
+                    @click="selectQuest(quest)"
+                    :disabled="loading"
+                  >
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <div class="fw-semibold">#{{ '{{' }} quest.id {{ '}}' }} · {{ '{{' }} quest.title {{ '}}' }}</div>
+                        <small class="text-muted" v-if="quest.accept_npc">
+                          Nhận từ: {{ '{{' }} quest.accept_npc {{ '}}' }}
+                        </small>
+                      </div>
+                      <i class="bi bi-chevron-right"></i>
+                    </div>
+                  </button>
+                  <div class="p-3 text-center text-muted" v-if="!filteredQuests.length">
+                    Không có nhiệm vụ phù hợp
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-9">
+              <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white border-0">
+                  <h5 class="card-title mb-0">Tổng quan tài liệu</h5>
+                </div>
+                <div class="card-body">
+                  <form class="row gy-3" @submit.prevent="saveDocument">
+                    <div class="col-12 col-md-6">
+                      <label class="form-label">Tiêu đề</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        v-model="documentMeta.title"
+                        :disabled="loading"
+                        placeholder="Tên tài liệu"
+                      />
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label class="form-label">Số lượng nhiệm vụ</label>
+                      <input type="text" class="form-control" :value="quests.length" disabled />
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label">Tóm tắt / Ghi chú</label>
+                      <textarea
+                        class="form-control"
+                        rows="4"
+                        v-model="documentMeta.overview"
+                        :disabled="loading"
+                        placeholder="Mô tả tổng quan về chuỗi nhiệm vụ"
+                      ></textarea>
+                    </div>
+                    <div class="col-12 d-flex justify-content-end gap-2">
+                      <button type="button" class="btn btn-outline-secondary" @click="resetDocument" :disabled="!metaDirty || loading">
+                        Khôi phục
+                      </button>
+                      <button type="submit" class="btn btn-primary" :disabled="!metaDirty || loading">
+                        Lưu tổng quan
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <div class="card shadow-sm">
+                <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                  <div>
+                    <h5 class="card-title mb-0" v-if="creating">
+                      Thêm nhiệm vụ mới
+                    </h5>
+                    <h5 class="card-title mb-0" v-else-if="selectedQuest">
+                      #{{ '{{' }} selectedQuest.id {{ '}}' }} · {{ '{{' }} selectedQuest.title {{ '}}' }}
+                    </h5>
+                    <h5 class="card-title mb-0" v-else>
+                      Chọn một nhiệm vụ để bắt đầu
+                    </h5>
+                  </div>
+                  <div class="d-flex gap-2" v-if="selectedQuest || creating">
+                    <button class="btn btn-outline-secondary btn-sm" @click="cancelQuestChanges" :disabled="!questDirty || loading">
+                      Hủy thay đổi
+                    </button>
+                    <button class="btn btn-primary btn-sm" @click="saveQuest" :disabled="!questDirty || loading">
+                      Lưu nhiệm vụ
+                    </button>
+                    <button
+                      class="btn btn-danger btn-sm"
+                      v-if="selectedQuest"
+                      @click="deleteQuest"
+                      :disabled="loading"
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div v-if="selectedQuest || creating">
+                    <div class="row gy-3">
+                      <div class="col-12">
+                        <label class="form-label">Tên nhiệm vụ</label>
+                        <input type="text" class="form-control" v-model="questForm.title" :disabled="loading" />
+                      </div>
+                      <div class="col-12 col-lg-6">
+                        <label class="form-label">NPC nhận nhiệm vụ</label>
+                        <input type="text" class="form-control" v-model="questForm.accept_npc" :disabled="loading" />
+                      </div>
+                      <div class="col-12 col-lg-6">
+                        <label class="form-label">NPC hoàn thành</label>
+                        <input type="text" class="form-control" v-model="questForm.complete_npc" :disabled="loading" />
+                      </div>
+                      <div class="col-12">
+                        <label class="form-label">Mô tả</label>
+                        <textarea class="form-control" rows="3" v-model="questForm.description" :disabled="loading"></textarea>
+                      </div>
+                      <div class="col-12 col-lg-6">
+                        <label class="form-label">Hội thoại khi nhận</label>
+                        <textarea
+                          class="form-control"
+                          rows="4"
+                          v-model="questForm.dialog_accept_text"
+                          :disabled="loading"
+                          placeholder="Mỗi dòng tương ứng một câu"
+                        ></textarea>
+                      </div>
+                      <div class="col-12 col-lg-6">
+                        <label class="form-label">Hội thoại khi hoàn thành</label>
+                        <textarea
+                          class="form-control"
+                          rows="4"
+                          v-model="questForm.dialog_complete_text"
+                          :disabled="loading"
+                          placeholder="Mỗi dòng tương ứng một câu"
+                        ></textarea>
+                      </div>
+                      <div class="col-12 col-lg-6">
+                        <label class="form-label">Mục tiêu</label>
+                        <textarea
+                          class="form-control"
+                          rows="4"
+                          v-model="questForm.targets_text"
+                          :disabled="loading"
+                          placeholder="Mỗi dòng là một mục tiêu"
+                        ></textarea>
+                      </div>
+                      <div class="col-12 col-lg-6">
+                        <label class="form-label">Ghi chú thêm</label>
+                        <textarea
+                          class="form-control"
+                          rows="4"
+                          v-model="questForm.notes_text"
+                          :disabled="loading"
+                          placeholder="Mỗi dòng là một ghi chú"
+                        ></textarea>
+                      </div>
+                      <div class="col-12">
+                        <label class="form-label">Extra fields (JSON)</label>
+                        <textarea
+                          class="form-control font-monospace"
+                          rows="4"
+                          v-model="questForm.extra_fields_text"
+                          :disabled="loading"
+                          placeholder="{ \"key\": \"value\" }"
+                        ></textarea>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="text-center text-muted py-5" v-else>
+                    <i class="bi bi-diagram-3 display-6 d-block mb-3"></i>
+                    <p class="mb-0">Hãy chọn một nhiệm vụ ở danh sách bên trái hoặc tạo mới.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <div class="loading-overlay" v-if="loading">
+        <div class="spinner-border text-primary" role="status"></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      const splitLines = (value) => {
+        if (!value || !value.trim()) {
+          return [];
+        }
+        return value
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0);
+      };
+
+      const clone = (obj) => JSON.parse(JSON.stringify(obj));
+
+      Vue.createApp({
+        data() {
+          return {
+            loading: false,
+            quests: [],
+            selectedQuestId: null,
+            creating: false,
+            questForm: this.emptyQuestForm(),
+            questOriginal: this.emptyQuestForm(),
+            documentMeta: { title: '', overview: '' },
+            documentOriginal: { title: '', overview: '' },
+            message: '',
+            messageType: 'success',
+            searchQuery: '',
+            dataPath: {{ (data_path or '') | tojson }} || '',
+            messageTimer: null,
+          };
+        },
+        computed: {
+          filteredQuests() {
+            if (!this.searchQuery.trim()) {
+              return this.quests;
+            }
+            const term = this.searchQuery.trim().toLowerCase();
+            return this.quests.filter((quest) => {
+              return (
+                quest.title.toLowerCase().includes(term) ||
+                String(quest.id).includes(term) ||
+                (quest.accept_npc && quest.accept_npc.toLowerCase().includes(term))
+              );
+            });
+          },
+          selectedQuest() {
+            if (this.selectedQuestId == null) {
+              return null;
+            }
+            return this.quests.find((quest) => quest.id === this.selectedQuestId) || null;
+          },
+          messageClass() {
+            return `alert-${this.messageType}`;
+          },
+          metaDirty() {
+            return JSON.stringify(this.normaliseMeta(this.documentMeta)) !== JSON.stringify(this.normaliseMeta(this.documentOriginal));
+          },
+          questDirty() {
+            return JSON.stringify(this.normaliseQuestForm(this.questForm)) !== JSON.stringify(this.normaliseQuestForm(this.questOriginal));
+          },
+        },
+        created() {
+          this.loadDocument();
+        },
+        methods: {
+          emptyQuestForm() {
+            return {
+              id: null,
+              title: '',
+              description: '',
+              accept_npc: '',
+              complete_npc: '',
+              dialog_accept_text: '',
+              dialog_complete_text: '',
+              targets_text: '',
+              notes_text: '',
+              extra_fields_text: '{}'
+            };
+          },
+          normaliseMeta(meta) {
+            return {
+              title: meta.title && meta.title.trim() ? meta.title.trim() : null,
+              overview: meta.overview || '',
+            };
+          },
+          normaliseQuestForm(form) {
+            return {
+              title: form.title || '',
+              description: form.description || '',
+              accept_npc: form.accept_npc || '',
+              complete_npc: form.complete_npc || '',
+              dialog_accept_text: form.dialog_accept_text || '',
+              dialog_complete_text: form.dialog_complete_text || '',
+              targets_text: form.targets_text || '',
+              notes_text: form.notes_text || '',
+              extra_fields_text: form.extra_fields_text || '{}',
+            };
+          },
+          async loadDocument() {
+            try {
+              this.loading = true;
+              const response = await fetch('/api/document');
+              if (!response.ok) {
+                throw new Error('Không thể tải dữ liệu.');
+              }
+              const data = await response.json();
+              this.quests = data.quests;
+              this.documentMeta = {
+                title: data.title || '',
+                overview: data.overview || '',
+              };
+              this.documentOriginal = clone(this.documentMeta);
+              if (this.selectedQuestId) {
+                const quest = this.quests.find((item) => item.id === this.selectedQuestId);
+                if (quest) {
+                  this.selectQuest(quest);
+                } else {
+                  this.clearQuestSelection();
+                }
+              }
+              this.showMessage('success', 'Đã tải dữ liệu mới nhất.');
+            } catch (error) {
+              this.showMessage('danger', error.message || 'Đã xảy ra lỗi.');
+            } finally {
+              this.loading = false;
+            }
+          },
+          prepareQuestForm(quest) {
+            if (!quest) {
+              return this.emptyQuestForm();
+            }
+            return {
+              id: quest.id,
+              title: quest.title || '',
+              description: quest.description || '',
+              accept_npc: quest.accept_npc || '',
+              complete_npc: quest.complete_npc || '',
+              dialog_accept_text: (quest.dialog_accept || []).join('\n'),
+              dialog_complete_text: (quest.dialog_complete || []).join('\n'),
+              targets_text: (quest.targets || []).join('\n'),
+              notes_text: (quest.notes || []).join('\n'),
+              extra_fields_text: JSON.stringify(quest.extra_fields || {}, null, 2) || '{}'
+            };
+          },
+          selectQuest(quest) {
+            this.creating = false;
+            this.selectedQuestId = quest.id;
+            const form = this.prepareQuestForm(quest);
+            this.questForm = clone(form);
+            this.questOriginal = clone(form);
+          },
+          clearQuestSelection() {
+            this.selectedQuestId = null;
+            this.creating = false;
+            this.questForm = this.emptyQuestForm();
+            this.questOriginal = this.emptyQuestForm();
+          },
+          startCreate() {
+            this.creating = true;
+            this.selectedQuestId = null;
+            const form = this.emptyQuestForm();
+            this.questForm = clone(form);
+            this.questOriginal = clone(form);
+          },
+          resetDocument() {
+            this.documentMeta = clone(this.documentOriginal);
+          },
+          async saveDocument() {
+            try {
+              this.loading = true;
+              const payload = this.normaliseMeta(this.documentMeta);
+              const response = await fetch('/api/document', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+              if (!response.ok) {
+                throw new Error('Không thể lưu tổng quan.');
+              }
+              const data = await response.json();
+              this.documentMeta = {
+                title: data.title || '',
+                overview: data.overview || '',
+              };
+              this.documentOriginal = clone(this.documentMeta);
+              this.showMessage('success', 'Đã lưu tổng quan.');
+            } catch (error) {
+              this.showMessage('danger', error.message || 'Đã xảy ra lỗi khi lưu.');
+            } finally {
+              this.loading = false;
+            }
+          },
+          parseExtraFields(text) {
+            const trimmed = text.trim();
+            if (!trimmed) {
+              return {};
+            }
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                throw new Error();
+              }
+              const cleaned = {};
+              Object.entries(parsed).forEach(([key, value]) => {
+                cleaned[String(key)] = value != null ? String(value) : '';
+              });
+              return cleaned;
+            } catch (error) {
+              throw new Error('Extra fields phải là JSON hợp lệ.');
+            }
+          },
+          buildQuestPayload(form) {
+            if (!form.title || !form.title.trim()) {
+              throw new Error('Tên nhiệm vụ không được để trống.');
+            }
+            return {
+              title: form.title.trim(),
+              description: form.description && form.description.trim() ? form.description.trim() : null,
+              accept_npc: form.accept_npc && form.accept_npc.trim() ? form.accept_npc.trim() : null,
+              complete_npc: form.complete_npc && form.complete_npc.trim() ? form.complete_npc.trim() : null,
+              dialog_accept: splitLines(form.dialog_accept_text),
+              dialog_complete: splitLines(form.dialog_complete_text),
+              targets: splitLines(form.targets_text),
+              notes: splitLines(form.notes_text),
+              extra_fields: this.parseExtraFields(form.extra_fields_text || '{}'),
+            };
+          },
+          async saveQuest() {
+            try {
+              this.loading = true;
+              const payload = this.buildQuestPayload(this.questForm);
+              let response;
+              if (this.creating) {
+                response = await fetch('/api/quests', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload),
+                });
+              } else if (this.selectedQuestId != null) {
+                response = await fetch(`/api/quests/${this.selectedQuestId}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload),
+                });
+              } else {
+                throw new Error('Không xác định được nhiệm vụ để lưu.');
+              }
+
+              if (!response.ok) {
+                throw new Error('Không thể lưu nhiệm vụ.');
+              }
+
+              const data = await response.json();
+              if (this.creating) {
+                this.quests.push(data);
+                this.quests.sort((a, b) => a.id - b.id);
+                this.selectQuest(data);
+                this.creating = false;
+                this.showMessage('success', 'Đã tạo nhiệm vụ mới.');
+              } else {
+                const index = this.quests.findIndex((quest) => quest.id === data.id);
+                if (index !== -1) {
+                  this.quests.splice(index, 1, data);
+                }
+                this.selectQuest(data);
+                this.showMessage('success', 'Đã cập nhật nhiệm vụ.');
+              }
+            } catch (error) {
+              this.showMessage('danger', error.message || 'Đã xảy ra lỗi khi lưu nhiệm vụ.');
+            } finally {
+              this.loading = false;
+            }
+          },
+          cancelQuestChanges() {
+            this.questForm = clone(this.questOriginal);
+          },
+          async deleteQuest() {
+            if (!this.selectedQuestId) {
+              return;
+            }
+            const confirmDelete = window.confirm('Bạn có chắc muốn xóa nhiệm vụ này?');
+            if (!confirmDelete) {
+              return;
+            }
+            try {
+              this.loading = true;
+              const response = await fetch(`/api/quests/${this.selectedQuestId}`, {
+                method: 'DELETE',
+              });
+              if (response.status !== 204) {
+                throw new Error('Không thể xóa nhiệm vụ.');
+              }
+              this.quests = this.quests.filter((quest) => quest.id !== this.selectedQuestId);
+              this.clearQuestSelection();
+              this.showMessage('success', 'Đã xóa nhiệm vụ.');
+            } catch (error) {
+              this.showMessage('danger', error.message || 'Đã xảy ra lỗi khi xóa.');
+            } finally {
+              this.loading = false;
+            }
+          },
+          showMessage(type, text) {
+            this.messageType = type;
+            this.message = text;
+            if (this.messageTimer) {
+              clearTimeout(this.messageTimer);
+            }
+            this.messageTimer = setTimeout(() => {
+              this.message = '';
+            }, 3500);
+          },
+          clearMessage() {
+            if (this.messageTimer) {
+              clearTimeout(this.messageTimer);
+            }
+            this.message = '';
+          },
+        },
+      }).mount('#app');
+    </script>
+  </body>
+</html>
