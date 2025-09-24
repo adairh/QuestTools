@@ -10,6 +10,7 @@ from typing import List, Optional
 from .models import Quest, QuestDocument
 from .parser import parse_document
 from .storage import load_document, save_document
+from .server import run_server
 
 
 def _load_or_empty(path: Path) -> QuestDocument:
@@ -159,6 +160,10 @@ def cmd_remove(args: argparse.Namespace) -> None:
     print(f"Removed quest {args.id}")
 
 
+def cmd_serve(args: argparse.Namespace) -> None:
+    run_server(Path(args.data), host=args.host, port=args.port, open_browser=args.open)
+
+
 def cmd_show(args: argparse.Namespace) -> None:
     path = Path(args.data)
     document = load_document(path)
@@ -214,6 +219,13 @@ def build_parser() -> argparse.ArgumentParser:
     remove_parser.add_argument("data", help="Quest JSON data file")
     remove_parser.add_argument("id", type=int, help="Quest identifier")
     remove_parser.set_defaults(func=cmd_remove)
+
+    serve_parser = subparsers.add_parser("serve", help="Launch the management web UI")
+    serve_parser.add_argument("data", help="Quest JSON data file")
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8000)
+    serve_parser.add_argument("--open", action="store_true", help="Open the interface in a browser")
+    serve_parser.set_defaults(func=cmd_serve)
 
     return parser
 
