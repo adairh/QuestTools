@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -71,11 +71,14 @@ def create_app(repository: QuestRepository, *, data_path: Path | None = None) ->
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return schemas.QuestResponse(**quest.to_dict())
 
-    @app.delete("/api/quests/{quest_id}", status_code=204)
-    def delete_quest(quest_id: int, repo: QuestRepository = Depends(get_repository)) -> None:
+    @app.delete("/api/quests/{quest_id}", status_code=204, response_class=Response)
+    def delete_quest(
+        quest_id: int, repo: QuestRepository = Depends(get_repository)
+    ) -> Response:
         try:
             repo.delete_quest(quest_id)
         except KeyError as exc:  # pragma: no cover - defensive
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return Response(status_code=204)
 
     return app
